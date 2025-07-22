@@ -19,7 +19,7 @@ use wax::Glob;
 
 use crate::{
     collections::{HashMap, HashSet},
-    config::{ResolvedTask, TaskCommand, TaskConfig},
+    config::{ResolvedTask, ResolvedTaskConfig, TaskCommand, TaskConfig},
     maybe_str::MaybeString,
     str::Str,
 };
@@ -89,7 +89,7 @@ pub struct TaskEnvs {
 }
 
 impl TaskEnvs {
-    pub fn resolve(base_dir: &Path, task: &TaskConfig, config_dir: &Str) -> anyhow::Result<Self> {
+    pub fn resolve(base_dir: &Path, task: &ResolvedTaskConfig) -> anyhow::Result<Self> {
         // All envs that are passed to the task
         let mut all_envs: HashMap<Str, Arc<OsStr>> = std::env::vars_os()
             .filter_map(|(name, value)| {
@@ -99,8 +99,8 @@ impl TaskEnvs {
                 // TODO: glob
                 // TODO: more default passthrough envs: https://github.com/vercel/turborepo/blob/26d309f073ca3ac054109ba0c29c7e230e7caac3/crates/turborepo-lib/src/task_hash.rs#L439
                 if name == "PATH"
-                    || task.envs.contains(name)
-                    || task.pass_through_envs.contains(name)
+                    || task.config.envs.contains(name)
+                    || task.config.pass_through_envs.contains(name)
                 {
                     Some((Str::from(name), Arc::<OsStr>::from(value)))
                 } else {
@@ -110,7 +110,7 @@ impl TaskEnvs {
             .collect();
 
         let mut envs_without_pass_through = HashMap::<Str, Str>::new();
-        for name in &task.envs {
+        for name in &task.config.envs {
             let Some(value) = all_envs.get(name) else {
                 continue;
             };
@@ -127,10 +127,10 @@ impl TaskEnvs {
         let env_path =
             all_envs.entry("PATH".into()).or_insert_with(|| Arc::<OsStr>::from(OsStr::new("")));
         let paths = split_paths(env_path);
-        let node_modules_bin = base_dir.join(&task.cwd).join("node_modules/.bin");
+        let node_modules_bin = base_dir.join(&task.config.cwd).join("node_modules/.bin");
         *env_path = join_paths(
             iter::once(node_modules_bin)
-                .chain(iter::once(base_dir.join(config_dir).join("node_modules/.bin")))
+                .chain(iter::once(base_dir.join(&task.config_dir).join("node_modules/.bin")))
                 .chain(paths),
         )?
         .into();

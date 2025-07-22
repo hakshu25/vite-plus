@@ -142,7 +142,7 @@ impl ResolvedTaskConfig {
                 }
             }
         };
-        let task_envs = TaskEnvs::resolve(base_dir, &self.config, &self.config_dir)?;
+        let task_envs = TaskEnvs::resolve(base_dir, &self)?;
         Ok(ResolvedTaskCommand {
             fingerprint: CommandFingerprint {
                 cwd: cwd.as_str().into(),
