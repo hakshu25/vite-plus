@@ -38,6 +38,19 @@ fn is_package_manager_tool(tool: &str) -> bool {
 /// Returns an exit code to be used with std::process::exit.
 pub async fn dispatch(tool: &str, args: &[String]) -> i32 {
     tracing::debug!("dispatch: tool: {tool}, args: {:?}", args);
+
+    // Handle vpx — standalone command, doesn't need recursion/bypass/shim-mode checks
+    if tool == "vpx" {
+        let cwd = match current_dir() {
+            Ok(path) => path,
+            Err(e) => {
+                eprintln!("vp: Failed to get current directory: {e}");
+                return 1;
+            }
+        };
+        return crate::commands::vpx::execute_vpx(args, &cwd).await;
+    }
+
     // Check recursion prevention - if already in a shim context, passthrough directly
     // Only applies to core tools (node/npm/npx) whose bin dir is prepended to PATH.
     // Package binaries are always resolved via metadata lookup, so they can't loop.
@@ -231,7 +244,9 @@ async fn dispatch_package_binary(tool: &str, args: &[String]) -> i32 {
 /// Find the package that provides a given binary.
 ///
 /// Uses BinConfig for deterministic O(1) lookup instead of scanning all packages.
-async fn find_package_for_binary(binary_name: &str) -> Result<Option<PackageMetadata>, String> {
+pub(crate) async fn find_package_for_binary(
+    binary_name: &str,
+) -> Result<Option<PackageMetadata>, String> {
     // Use BinConfig for deterministic lookup
     if let Some(bin_config) = BinConfig::load(binary_name).await.map_err(|e| format!("{e}"))? {
         return PackageMetadata::load(&bin_config.package).await.map_err(|e| format!("{e}"));
@@ -242,7 +257,10 @@ async fn find_package_for_binary(binary_name: &str) -> Result<Option<PackageMeta
 }
 
 /// Locate a binary within a package's installation directory.
-fn locate_package_binary(package_name: &str, binary_name: &str) -> Result<AbsolutePathBuf, String> {
+pub(crate) fn locate_package_binary(
+    package_name: &str,
+    binary_name: &str,
+) -> Result<AbsolutePathBuf, String> {
     let packages_dir = config::get_packages_dir().map_err(|e| format!("{e}"))?;
     let package_dir = packages_dir.join(package_name);
 
@@ -401,7 +419,7 @@ async fn resolve_with_cache(cwd: &AbsolutePathBuf) -> Result<ResolveCacheEntry, 
 }
 
 /// Ensure Node.js is installed.
-async fn ensure_installed(version: &str) -> Result<(), String> {
+pub(crate) async fn ensure_installed(version: &str) -> Result<(), String> {
     let home_dir = vite_shared::get_vite_plus_home()
         .map_err(|e| format!("Failed to get vite-plus home dir: {e}"))?
         .join("js_runtime")
@@ -426,7 +444,7 @@ async fn ensure_installed(version: &str) -> Result<(), String> {
 }
 
 /// Locate a tool binary within the Node.js installation.
-fn locate_tool(version: &str, tool: &str) -> Result<AbsolutePathBuf, String> {
+pub(crate) fn locate_tool(version: &str, tool: &str) -> Result<AbsolutePathBuf, String> {
     let home_dir = vite_shared::get_vite_plus_home()
         .map_err(|e| format!("Failed to get vite-plus home dir: {e}"))?
         .join("js_runtime")
