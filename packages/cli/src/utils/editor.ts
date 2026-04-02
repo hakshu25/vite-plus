@@ -186,7 +186,10 @@ export async function selectEditor({
     const selectedEditor = await prompts.select({
       message:
         'Which editor are you using?\n  ' +
-        styleText('gray', 'Writes editor config files to enable recommended extensions and Oxlint/Oxfmt integrations.'),
+        styleText(
+          'gray',
+          'Writes editor config files to enable recommended extensions and Oxlint/Oxfmt integrations.',
+        ),
       options: [...editorOptions, noneOption],
       initialValue: 'vscode',
     });
