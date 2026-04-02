@@ -28,9 +28,7 @@ const ZED_SETTINGS = {
     oxlint: {
       initialization_options: {
         settings: {
-          configPath: './.oxlintrc.json',
           run: 'onType',
-          disableNestedConfig: false,
           fixKind: 'safe_fix',
           typeAware: true,
           unusedDisableDirectives: 'deny',

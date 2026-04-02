@@ -11,7 +11,7 @@ import {
   rewriteMonorepoProject,
   rewriteStandaloneProject,
 } from '../migration/migrator.js';
-import { DependencyType, type WorkspaceInfo } from '../types/index.js';
+import { DependencyType, PackageManager, type WorkspaceInfo } from '../types/index.js';
 import {
   detectExistingAgentTargetPaths,
   selectAgentTargetPaths,
@@ -51,7 +51,6 @@ import {
   executeMonorepoTemplate,
   executeRemoteTemplate,
 } from './templates/index.js';
-import { InitialMonorepoAppDir } from './templates/monorepo.js';
 import { BuiltinTemplate, TemplateType } from './templates/types.js';
 import { deriveDefaultPackageName, formatTargetDir } from './utils.js';
 
@@ -92,6 +91,10 @@ const helpMessage = renderCliDoc({
           description: 'Set up pre-commit hooks (default in non-interactive mode)',
         },
         { label: '--no-hooks', description: 'Skip pre-commit hooks setup' },
+        {
+          label: '--package-manager NAME',
+          description: 'Use specified package manager (pnpm, npm, yarn, bun)',
+        },
         { label: '--verbose', description: 'Show detailed scaffolding output' },
         { label: '--no-interactive', description: 'Run in non-interactive mode' },
         { label: '--list', description: 'List all available templates' },
@@ -152,7 +155,7 @@ const listTemplatesMessage = renderCliDoc({
         { label: 'vite', description: 'Official Vite templates (create-vite)' },
         {
           label: '@tanstack/start',
-          description: 'TanStack applications (@tanstack/create-start)',
+          description: 'TanStack applications (@tanstack/cli create)',
         },
         { label: 'next-app', description: 'Next.js application (create-next-app)' },
         { label: 'nuxt', description: 'Nuxt application (create-nuxt)' },
@@ -166,7 +169,7 @@ const listTemplatesMessage = renderCliDoc({
       lines: [
         `  ${accent('vp create')} ${muted('# interactive mode')}`,
         `  ${accent('vp create vite')} ${muted('# shorthand for create-vite')}`,
-        `  ${accent('vp create @tanstack/start')} ${muted('# shorthand for @tanstack/create-start')}`,
+        `  ${accent('vp create @tanstack/start')} ${muted('# shorthand for @tanstack/cli create')}`,
         `  ${accent('vp create <template> -- <options>')} ${muted('# pass options to the template')}`,
       ],
     },
@@ -186,6 +189,7 @@ export interface Options {
   agent?: string | string[] | false;
   editor?: string;
   hooks?: boolean;
+  packageManager?: string;
 }
 
 // Parse CLI arguments: split on '--' separator
@@ -208,10 +212,11 @@ function parseArgs() {
     agent?: string | string[] | false;
     editor?: string;
     hooks?: boolean;
+    'package-manager'?: string;
   }>(viteArgs, {
     alias: { h: 'help' },
     boolean: ['help', 'list', 'all', 'interactive', 'hooks', 'verbose'],
-    string: ['directory', 'agent', 'editor'],
+    string: ['directory', 'agent', 'editor', 'package-manager'],
     default: { interactive: defaultInteractive() },
   });
 
@@ -228,6 +233,7 @@ function parseArgs() {
       agent: parsed.agent,
       editor: parsed.editor,
       hooks: parsed.hooks,
+      packageManager: parsed['package-manager'],
     } as Options,
     templateArgs,
   };
@@ -449,7 +455,7 @@ Use \`vp create --list\` to list all available templates, or run \`vp create --h
 
   const isBuiltinTemplate = selectedTemplateName.startsWith('vite:');
 
-  // Remote templates (e.g., @tanstack/create-start, custom templates) run their own
+  // Remote templates (e.g., @tanstack/cli, custom templates) run their own
   // interactive CLI, so verbose mode is needed to show their output.
   if (!isBuiltinTemplate) {
     compactOutput = false;
@@ -625,9 +631,20 @@ Use \`vp create --list\` to list all available templates, or run \`vp create --h
     }
   }
 
-  // Prompt for package manager or use default
+  // Resolve package manager: workspace detection > CLI flag > interactive prompt/default
+  if (
+    options.packageManager &&
+    !Object.values(PackageManager).includes(options.packageManager as PackageManager)
+  ) {
+    const valid = Object.values(PackageManager).join(', ');
+    prompts.log.error(
+      `Invalid package manager: ${options.packageManager}. Must be one of: ${valid}`,
+    );
+    cancelAndExit('Invalid --package-manager value', 1);
+  }
   const packageManager =
     workspaceInfoOptional.packageManager ??
+    (options.packageManager as PackageManager | undefined) ??
     (await selectPackageManager(options.interactive, compactOutput));
   const shouldSilencePackageManagerInstallLog =
     compactOutput || (isMonorepo && workspaceInfoOptional.packageManager !== undefined);
@@ -796,7 +813,7 @@ Use \`vp create --list\` to list all available templates, or run \`vp create --h
     showCreateSummary({
       description: describeScaffold(selectedTemplateName, selectedTemplateArgs),
       installSummary,
-      nextCommand: getNextCommand(projectDir, `vp dev ${InitialMonorepoAppDir}`),
+      nextCommand: getNextCommand(projectDir, 'vp run'),
       packageManager: workspaceInfo.packageManager,
       packageManagerVersion: workspaceInfo.downloadPackageManager.version,
       projectDir,
@@ -963,12 +980,7 @@ Use \`vp create --list\` to list all available templates, or run \`vp create --h
   showCreateSummary({
     description: describeScaffold(selectedTemplateName, selectedTemplateArgs),
     installSummary,
-    nextCommand: isMonorepo
-      ? `vp dev ${projectDir}`
-      : getNextCommand(
-          projectDir,
-          selectedTemplateName === BuiltinTemplate.library ? 'vp run dev' : 'vp dev',
-        ),
+    nextCommand: getNextCommand(projectDir, 'vp run'),
     packageManager: workspaceInfo.packageManager,
     packageManagerVersion: workspaceInfo.downloadPackageManager.version,
     projectDir,

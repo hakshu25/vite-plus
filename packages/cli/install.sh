@@ -6,16 +6,16 @@
 #   curl -fsSL https://vite.plus | bash
 #
 # Environment variables:
-#   VITE_PLUS_VERSION - Version to install (default: latest)
-#   VITE_PLUS_HOME - Installation directory (default: ~/.vite-plus)
+#   VP_VERSION - Version to install (default: latest)
+#   VP_HOME - Installation directory (default: ~/.vite-plus)
 #   NPM_CONFIG_REGISTRY - Custom npm registry URL (default: https://registry.npmjs.org)
-#   VITE_PLUS_NODE_MANAGER - Set to "yes" or "no" to skip interactive prompt (for CI/devcontainers)
-#   VITE_PLUS_LOCAL_TGZ - Path to local vite-plus.tgz (for development/testing)
+#   VP_NODE_MANAGER - Set to "yes" or "no" to skip interactive prompt (for CI/devcontainers)
+#   VP_LOCAL_TGZ - Path to local vite-plus.tgz (for development/testing)
 
 set -e
 
-VITE_PLUS_VERSION="${VITE_PLUS_VERSION:-latest}"
-INSTALL_DIR="${VITE_PLUS_HOME:-$HOME/.vite-plus}"
+VP_VERSION="${VP_VERSION:-latest}"
+INSTALL_DIR="${VP_HOME:-$HOME/.vite-plus}"
 # Use $HOME-relative path for shell config references (portable across sessions)
 if case "$INSTALL_DIR" in "$HOME"/*) true;; *) false;; esac; then
   INSTALL_DIR_REF="\$HOME${INSTALL_DIR#"$HOME"}"
@@ -26,9 +26,9 @@ fi
 NPM_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}"
 NPM_REGISTRY="${NPM_REGISTRY%/}"
 # Local tarball for development/testing
-LOCAL_TGZ="${VITE_PLUS_LOCAL_TGZ:-}"
+LOCAL_TGZ="${VP_LOCAL_TGZ:-}"
 # Local binary path (set by install-global-cli.ts for local dev)
-LOCAL_BINARY="${VITE_PLUS_LOCAL_BINARY:-}"
+LOCAL_BINARY="${VP_LOCAL_BINARY:-}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -226,15 +226,15 @@ check_requirements() {
 }
 
 # Fetch package metadata from npm registry (cached for reuse)
-# Uses VITE_PLUS_VERSION to fetch the correct version's metadata
+# Uses VP_VERSION to fetch the correct version's metadata
 PACKAGE_METADATA=""
 fetch_package_metadata() {
   if [ -z "$PACKAGE_METADATA" ]; then
     local version_path metadata_url
-    if [ "$VITE_PLUS_VERSION" = "latest" ]; then
+    if [ "$VP_VERSION" = "latest" ]; then
       version_path="latest"
     else
-      version_path="$VITE_PLUS_VERSION"
+      version_path="$VP_VERSION"
     fi
     metadata_url="${NPM_REGISTRY}/vite-plus/${version_path}"
     PACKAGE_METADATA=$(curl_with_error_handling -s "$metadata_url")
@@ -245,16 +245,16 @@ fetch_package_metadata() {
     # npm can return either {"error":"..."} or a plain JSON string like "version not found: test"
     if echo "$PACKAGE_METADATA" | grep -q '"error"'; then
       local error_msg
-      error_msg=$(echo "$PACKAGE_METADATA" | grep -o '"error":"[^"]*"' | cut -d'"' -f4)
-      error "Failed to fetch version '${version_path}': ${error_msg:-unknown error}"
+      error_msg=$(echo "$PACKAGE_METADATA" | grep -o '"error" *: *"[^"]*"' | cut -d'"' -f4)
+      error "Failed to fetch version '${version_path}': ${error_msg:-unknown error}\n  URL: $metadata_url"
     fi
     # Check if response is a plain error string (not a valid package object)
     # Use '"version":' to match JSON property, not just the word "version"
-    if ! echo "$PACKAGE_METADATA" | grep -q '"version":'; then
+    if ! echo "$PACKAGE_METADATA" | grep -q '"version" *:'; then
       # Remove surrounding quotes from the error message if present
       local error_msg
       error_msg=$(echo "$PACKAGE_METADATA" | sed 's/^"//;s/"$//')
-      error "Failed to fetch version '${version_path}': ${error_msg:-unknown error}"
+      error "Failed to fetch version '${version_path}': ${error_msg:-unknown error}\n  URL: $metadata_url"
     fi
   fi
   # PACKAGE_METADATA is set as a global variable, no need to echo
@@ -266,7 +266,7 @@ get_version_from_metadata() {
   # Call fetch_package_metadata to populate PACKAGE_METADATA global
   # Don't use command substitution as it would swallow the exit from error()
   fetch_package_metadata
-  RESOLVED_VERSION=$(echo "$PACKAGE_METADATA" | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
+  RESOLVED_VERSION=$(echo "$PACKAGE_METADATA" | grep -o '"version" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
   if [ -z "$RESOLVED_VERSION" ]; then
     error "Failed to extract version from package metadata"
   fi
@@ -444,11 +444,11 @@ setup_node_manager() {
   fi
 
   # Explicit override via environment variable
-  if [ "$VITE_PLUS_NODE_MANAGER" = "yes" ]; then
+  if [ "$VP_NODE_MANAGER" = "yes" ]; then
     refresh_shims "$vp_bin"
     NODE_MANAGER_ENABLED="true"
     return 0
-  elif [ "$VITE_PLUS_NODE_MANAGER" = "no" ]; then
+  elif [ "$VP_NODE_MANAGER" = "no" ]; then
     NODE_MANAGER_ENABLED="false"
     return 0
   fi
@@ -487,7 +487,9 @@ setup_node_manager() {
   # Prompt user in interactive mode
   if [ -e /dev/tty ] && [ -t 1 ]; then
     echo ""
-    echo "Would you want Vite+ to manage Node.js versions?"
+    echo "Would you like Vite+ to manage your Node.js versions?"
+    echo "It adds \`node\`, \`npm\`, and \`npx\` shims to ~/.vite-plus/bin/ and automatically uses the right version."
+    echo "Opt out anytime with \`vp env off\`."
     echo -n "Press Enter to accept (Y/n): "
     read -r response < /dev/tty
 
@@ -560,17 +562,17 @@ main() {
       error "Local tarball not found: $LOCAL_TGZ"
     fi
     # Use version as-is (default to "local-dev")
-    if [ "$VITE_PLUS_VERSION" = "latest" ] || [ "$VITE_PLUS_VERSION" = "test" ]; then
-      VITE_PLUS_VERSION="local-dev"
+    if [ "$VP_VERSION" = "latest" ] || [ "$VP_VERSION" = "test" ]; then
+      VP_VERSION="local-dev"
     fi
   else
     # Fetch package metadata and resolve version from npm
     get_version_from_metadata
-    VITE_PLUS_VERSION="$RESOLVED_VERSION"
+    VP_VERSION="$RESOLVED_VERSION"
   fi
 
   # Set up version-specific directories
-  VERSION_DIR="$INSTALL_DIR/$VITE_PLUS_VERSION"
+  VERSION_DIR="$INSTALL_DIR/$VP_VERSION"
   BIN_DIR="$VERSION_DIR/bin"
   CURRENT_LINK="$INSTALL_DIR/current"
 
@@ -598,14 +600,14 @@ main() {
         fi
       fi
     else
-      error "VITE_PLUS_LOCAL_BINARY must be set when using VITE_PLUS_LOCAL_TGZ"
+      error "VP_LOCAL_BINARY must be set when using VP_LOCAL_TGZ"
     fi
     chmod +x "$BIN_DIR/$binary_name"
   else
     # Download from npm registry — extract only the vp binary from CLI platform package
     get_platform_suffix "$platform"
     local package_name="@voidzero-dev/vite-plus-cli-${PLATFORM_SUFFIX}"
-    local platform_url="${NPM_REGISTRY}/${package_name}/-/vite-plus-cli-${PLATFORM_SUFFIX}-${VITE_PLUS_VERSION}.tgz"
+    local platform_url="${NPM_REGISTRY}/${package_name}/-/vite-plus-cli-${PLATFORM_SUFFIX}-${VP_VERSION}.tgz"
 
     # Create temp directory for extraction
     local platform_temp_dir
@@ -627,10 +629,10 @@ main() {
   cat > "$VERSION_DIR/package.json" <<WRAPPER_EOF
 {
   "name": "vp-global",
-  "version": "$VITE_PLUS_VERSION",
+  "version": "$VP_VERSION",
   "private": true,
   "dependencies": {
-    "vite-plus": "$VITE_PLUS_VERSION"
+    "vite-plus": "$VP_VERSION"
   }
 }
 WRAPPER_EOF
@@ -643,9 +645,9 @@ minimum-release-age=0
 min-release-age=0
 NPMRC_EOF
 
-  # Install production dependencies (skip if VITE_PLUS_SKIP_DEPS_INSTALL is set,
+  # Install production dependencies (skip if VP_SKIP_DEPS_INSTALL is set,
   # e.g. during local dev where install-global-cli.ts handles deps separately)
-  if [ -z "${VITE_PLUS_SKIP_DEPS_INSTALL:-}" ]; then
+  if [ -z "${VP_SKIP_DEPS_INSTALL:-}" ]; then
     local install_log="$VERSION_DIR/install.log"
     local vp_install_bin="$BIN_DIR/vp"
     if [ -f "$BIN_DIR/vp.exe" ]; then
@@ -663,7 +665,7 @@ NPMRC_EOF
   fi
 
   # Create/update current symlink (use relative path for portability)
-  ln -sfn "$VITE_PLUS_VERSION" "$CURRENT_LINK"
+  ln -sfn "$VP_VERSION" "$CURRENT_LINK"
 
   # Create bin directory and vp entrypoint (always done)
   mkdir -p "$INSTALL_DIR/bin"
