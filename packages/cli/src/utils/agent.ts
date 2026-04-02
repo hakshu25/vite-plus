@@ -215,7 +215,7 @@ export async function selectAgentTargetPaths({
         'Which agents are you using?\n  ' +
         styleText(
           'gray',
-          'Writes AI agent instruction files (CLAUDE.md, AGENTS.md) to help coding assistants understand `vp` commands.',
+          'Writes an instruction file for each selected agent to help it understand `vp` commands and the project workflow.',
         ),
       options: AGENTS.map((option) => ({
         label: option.label,
