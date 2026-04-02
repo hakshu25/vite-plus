@@ -178,7 +178,7 @@ export async function selectEditor({
       value: option.id,
       hint: option.targetDir,
     }));
-    const noneOption = {
+    const otherOption = {
       label: 'Other',
       value: null,
       hint: 'Skip writing editor configs',
@@ -190,7 +190,7 @@ export async function selectEditor({
           'gray',
           'Writes editor config files to enable recommended extensions and Oxlint/Oxfmt integrations.',
         ),
-      options: [...editorOptions, noneOption],
+      options: [...editorOptions, otherOption],
       initialValue: 'vscode',
     });
 
