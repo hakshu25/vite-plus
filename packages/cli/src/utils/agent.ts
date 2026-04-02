@@ -209,6 +209,10 @@ export async function selectAgentTargetPaths({
   }
 
   if (interactive && !agent) {
+    prompts.log.info(
+      'Vite+ can write AI agent instruction files (e.g. CLAUDE.md, AGENTS.md) ' +
+        'to help coding assistants understand `vp` commands and the project workflow.',
+    );
     const selectedAgents = await prompts.multiselect({
       message: 'Which agents are you using?',
       options: AGENTS.map((option) => ({
@@ -470,6 +474,7 @@ export async function writeAgentInstructions({
   const seenDestinationPaths = new Set<string>();
   const seenRealPaths = new Set<string>();
   const incomingContent = await fsPromises.readFile(sourcePath, 'utf-8');
+  let shownConflictInfo = false;
   const shouldLinkToAgents = paths.includes(AGENT_STANDARD_PATH);
   const orderedPaths = shouldLinkToAgents
     ? [AGENT_STANDARD_PATH, ...paths.filter((p) => p !== AGENT_STANDARD_PATH)]
@@ -527,6 +532,13 @@ export async function writeAgentInstructions({
       if (preResolved) {
         conflictAction = preResolved;
       } else if (interactive) {
+        if (!shownConflictInfo) {
+          prompts.log.info(
+            'The Vite+ agent instructions template includes guidance on `vp` commands, ' +
+              'the build pipeline, and project conventions.',
+          );
+          shownConflictInfo = true;
+        }
         const action = await prompts.select({
           message: `Agent instructions already exist at ${targetPathToWrite}.`,
           options: [

@@ -172,6 +172,10 @@ export async function selectEditor({
   }
 
   if (interactive && !editor) {
+    prompts.log.info(
+      'Vite+ can write editor configuration files to enable recommended extensions ' +
+        'and Oxlint/Oxfmt integrations.',
+    );
     const editorOptions = EDITORS.map((option) => ({
       label: option.label,
       value: option.id,
@@ -282,6 +286,7 @@ export async function writeEditorConfigs({
   const targetDir = path.join(projectRoot, editorConfig.targetDir);
   await fsPromises.mkdir(targetDir, { recursive: true });
 
+  let shownConflictInfo = false;
   for (const [fileName, incoming] of Object.entries(editorConfig.files)) {
     const filePath = path.join(targetDir, fileName);
 
@@ -294,6 +299,13 @@ export async function writeEditorConfigs({
       if (preResolved) {
         conflictAction = preResolved;
       } else if (interactive) {
+        if (!shownConflictInfo) {
+          prompts.log.info(
+            `Vite+ adds ${editorConfig.label} settings for the built-in linter and formatter. ` +
+              'Merge adds new keys without overwriting your existing settings.',
+          );
+          shownConflictInfo = true;
+        }
         const action = await prompts.select({
           message: `${displayPath} already exists.`,
           options: [
