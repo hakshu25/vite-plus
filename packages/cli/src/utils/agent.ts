@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { styleText } from 'node:util';
 
 import * as prompts from '@voidzero-dev/vite-plus-prompts';
 
@@ -209,12 +210,13 @@ export async function selectAgentTargetPaths({
   }
 
   if (interactive && !agent) {
-    prompts.log.info(
-      'Vite+ can write AI agent instruction files (e.g. CLAUDE.md, AGENTS.md) ' +
-        'to help coding assistants understand `vp` commands and the project workflow.',
-    );
     const selectedAgents = await prompts.multiselect({
-      message: 'Which agents are you using?',
+      message:
+        'Which agents are you using?\n  ' +
+        styleText(
+          'gray',
+          'Writes AI agent instruction files (CLAUDE.md, AGENTS.md) to help coding assistants understand `vp` commands.',
+        ),
       options: AGENTS.map((option) => ({
         label: option.label,
         value: option.id,
@@ -474,7 +476,6 @@ export async function writeAgentInstructions({
   const seenDestinationPaths = new Set<string>();
   const seenRealPaths = new Set<string>();
   const incomingContent = await fsPromises.readFile(sourcePath, 'utf-8');
-  let shownConflictInfo = false;
   const shouldLinkToAgents = paths.includes(AGENT_STANDARD_PATH);
   const orderedPaths = shouldLinkToAgents
     ? [AGENT_STANDARD_PATH, ...paths.filter((p) => p !== AGENT_STANDARD_PATH)]
@@ -532,15 +533,13 @@ export async function writeAgentInstructions({
       if (preResolved) {
         conflictAction = preResolved;
       } else if (interactive) {
-        if (!shownConflictInfo) {
-          prompts.log.info(
-            'The Vite+ agent instructions template includes guidance on `vp` commands, ' +
-              'the build pipeline, and project conventions.',
-          );
-          shownConflictInfo = true;
-        }
         const action = await prompts.select({
-          message: `Agent instructions already exist at ${targetPathToWrite}.`,
+          message:
+            `Agent instructions already exist at ${targetPathToWrite}.\n  ` +
+            styleText(
+              'gray',
+              'The Vite+ template includes guidance on `vp` commands, the build pipeline, and project conventions.',
+            ),
           options: [
             {
               label: 'Append',

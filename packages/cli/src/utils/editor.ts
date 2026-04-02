@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { styleText } from 'node:util';
 
 import * as prompts from '@voidzero-dev/vite-plus-prompts';
 
@@ -172,10 +173,6 @@ export async function selectEditor({
   }
 
   if (interactive && !editor) {
-    prompts.log.info(
-      'Vite+ can write editor configuration files to enable recommended extensions ' +
-        'and Oxlint/Oxfmt integrations.',
-    );
     const editorOptions = EDITORS.map((option) => ({
       label: option.label,
       value: option.id,
@@ -187,7 +184,9 @@ export async function selectEditor({
       hint: 'Skip writing editor configs',
     };
     const selectedEditor = await prompts.select({
-      message: 'Which editor are you using?',
+      message:
+        'Which editor are you using?\n  ' +
+        styleText('gray', 'Writes editor config files to enable recommended extensions and Oxlint/Oxfmt integrations.'),
       options: [...editorOptions, noneOption],
       initialValue: 'vscode',
     });
@@ -286,7 +285,6 @@ export async function writeEditorConfigs({
   const targetDir = path.join(projectRoot, editorConfig.targetDir);
   await fsPromises.mkdir(targetDir, { recursive: true });
 
-  let shownConflictInfo = false;
   for (const [fileName, incoming] of Object.entries(editorConfig.files)) {
     const filePath = path.join(targetDir, fileName);
 
@@ -299,15 +297,13 @@ export async function writeEditorConfigs({
       if (preResolved) {
         conflictAction = preResolved;
       } else if (interactive) {
-        if (!shownConflictInfo) {
-          prompts.log.info(
-            `Vite+ adds ${editorConfig.label} settings for the built-in linter and formatter. ` +
-              'Merge adds new keys without overwriting your existing settings.',
-          );
-          shownConflictInfo = true;
-        }
         const action = await prompts.select({
-          message: `${displayPath} already exists.`,
+          message:
+            `${displayPath} already exists.\n  ` +
+            styleText(
+              'gray',
+              `Vite+ adds ${editorConfig.label} settings for the built-in linter and formatter. Merge adds new keys without overwriting existing ones.`,
+            ),
           options: [
             {
               label: 'Merge',

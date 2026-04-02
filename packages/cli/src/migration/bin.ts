@@ -71,12 +71,13 @@ function warnLegacyEslintConfig(legacyConfigFile: string) {
 
 async function confirmEslintMigration(interactive: boolean): Promise<boolean> {
   if (interactive) {
-    prompts.log.info(
-      "Oxlint is Vite+'s built-in linter — significantly faster than ESLint with compatible " +
-        'rule support. @oxlint/migrate will convert your existing rules automatically.',
-    );
     const confirmed = await prompts.confirm({
-      message: 'Migrate ESLint rules to Oxlint using @oxlint/migrate?',
+      message:
+        'Migrate ESLint rules to Oxlint using @oxlint/migrate?\n  ' +
+        styleText(
+          'gray',
+          "Oxlint is Vite+'s built-in linter — significantly faster than ESLint with compatible rule support. @oxlint/migrate converts your existing rules automatically.",
+        ),
       initialValue: true,
     });
     if (prompts.isCancel(confirmed)) {
@@ -129,12 +130,13 @@ function warnPackageLevelPrettier() {
 
 async function confirmPrettierMigration(interactive: boolean): Promise<boolean> {
   if (interactive) {
-    prompts.log.info(
-      "Oxfmt is Vite+'s built-in formatter that replaces Prettier with faster performance. " +
-        'Your Prettier configuration will be converted automatically.',
-    );
     const confirmed = await prompts.confirm({
-      message: 'Migrate Prettier to Oxfmt?',
+      message:
+        'Migrate Prettier to Oxfmt?\n  ' +
+        styleText(
+          'gray',
+          "Oxfmt is Vite+'s built-in formatter that replaces Prettier with faster performance. Your configuration will be converted automatically.",
+        ),
       initialValue: true,
     });
     if (prompts.isCancel(confirmed)) {
@@ -369,16 +371,15 @@ async function collectMigrationPlan(
     targetPaths: selectedAgentTargetPaths,
   });
   const agentConflictDecisions = new Map<string, 'append' | 'skip'>();
-  if (agentConflicts.length > 0 && options.interactive) {
-    prompts.log.info(
-      'The Vite+ agent instructions template includes guidance on `vp` commands, ' +
-        'the build pipeline, and project conventions.',
-    );
-  }
   for (const conflict of agentConflicts) {
     if (options.interactive) {
       const action = await prompts.select({
-        message: `Agent instructions already exist at ${conflict.targetPath}.`,
+        message:
+          `Agent instructions already exist at ${conflict.targetPath}.\n  ` +
+          styleText(
+            'gray',
+            'The Vite+ template includes guidance on `vp` commands, the build pipeline, and project conventions.',
+          ),
         options: [
           { label: 'Append', value: 'append' as const, hint: 'Add template content to the end' },
           { label: 'Skip', value: 'skip' as const, hint: 'Leave existing file unchanged' },
@@ -407,16 +408,15 @@ async function collectMigrationPlan(
     editorId: selectedEditor,
   });
   const editorConflictDecisions = new Map<string, 'merge' | 'skip'>();
-  if (editorConflicts.length > 0 && options.interactive) {
-    prompts.log.info(
-      'Vite+ adds editor settings for the built-in linter and formatter. ' +
-        'Merge adds new keys without overwriting your existing settings.',
-    );
-  }
   for (const conflict of editorConflicts) {
     if (options.interactive) {
       const action = await prompts.select({
-        message: `${conflict.displayPath} already exists.`,
+        message:
+          `${conflict.displayPath} already exists.\n  ` +
+          styleText(
+            'gray',
+            'Vite+ adds editor settings for the built-in linter and formatter. Merge adds new keys without overwriting existing ones.',
+          ),
         options: [
           {
             label: 'Merge',
